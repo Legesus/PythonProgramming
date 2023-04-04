@@ -6,7 +6,6 @@ import docx
 import docx2txt
 import PyPDF2
 import xml.etree.ElementTree as ET
-import html
 
 # Create a new window
 window = tk.Tk()
@@ -73,9 +72,6 @@ def convert_docx_to_xml(file_path):
 
     # Get the text of the Word document
     docx_text = docx2txt.process(file_path)
-
-    # Convert HTML entities to symbols
-    docx_text = html.unescape(docx_text)
 
     # Split the text into pages
     pages = docx_text.split('\f')
