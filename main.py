@@ -1,102 +1,84 @@
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-import pytesseract
-import docx
+import xml.etree.ElementTree as ET
 import docx2txt
 import PyPDF2
-import xml.etree.ElementTree as ET
-import html
 
-# Create a new window
-window = tk.Tk()
-window.title("File to XML Converter")
+def replace_ascii_codes(text):
+    ascii_codes = {"&#8217;": "'", "&#8221;": '"', "&#8220;": '"'}
+    for code, symbol in ascii_codes.items():
+        if code != "&amp;amp;":
+            text = text.replace(code, symbol)
+    return text
 
-# Create a label widget
-label = ttk.Label(window, text="Click the button to select a file")
-label.pack(padx=50, pady=20)
+def generate_corrected_xml(file_path):
+    with open(file_path, 'r', encoding='utf-8') as xml_file:
+        xml_contents = xml_file.read()
+    corrected_contents = replace_ascii_codes(xml_contents)
+    corrected_file_path = os.path.splitext(file_path)[0] + '_corrected.xml'
+    with open(corrected_file_path, 'w', encoding='utf-8') as corrected_file:
+        corrected_file.write(corrected_contents)
+    os.remove(file_path)
+    os.rename(corrected_file_path, file_path)
+    os.chmod(file_path, 0o777)
+    os.chmod(corrected_file_path, 0o777)
 
-# Create a variable to store the selected file type
-file_type = tk.StringVar(value="pdf")
-
-# Create a function to handle file selection
-def handle_select():
-    # Show a file dialog to select a file
-    if file_type.get() == "pdf":
-        file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
-    else:
-        file_path = filedialog.askopenfilename(filetypes=[("Word files", "*.docx")])
-
-    # Check if a file was selected
-    if file_path:
-        # Convert the file to XML
-        if file_type.get() == "pdf":
-            convert_pdf_to_xml(file_path)
-        else:
-            convert_docx_to_xml(file_path)
-
-# Create a function to convert a PDF file to XML
 def convert_pdf_to_xml(file_path):
-    # Open the PDF file
+    # Open the PDF file in read-binary mode
     with open(file_path, 'rb') as pdf_file:
         # Create a PDF reader object
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        pdf_reader = PyPDF2.PdfFileReader(pdf_file)
 
-        # Create a new Word document
-        docx_file_path = os.path.splitext(file_path)[0] + '.docx'
-        doc = docx.Document()
+        # Create a new XML element
+        root = ET.Element('document')
 
-        # Loop through each page of the PDF file and add the text to the Word document
-        for page_num in range(len(pdf_reader.pages)):
-            # Get the page object
-            page = pdf_reader.pages[page_num]
+        # Loop through each page of the PDF file
+        for page_num in range(pdf_reader.getNumPages()):
+            # Get the text of the page
+            page = pdf_reader.getPage(page_num)
+            page_text = page.extractText()
 
-            # Extract the text from the page
-            text = page.extract_text()
+            # Create a new XML element for the page
+            page_element = ET.SubElement(root, 'page')
+            page_element.set('number', str(page_num + 1))
 
-            # Add the text to the Word document
-            if text:
-                if page_num > 0:
-                    doc.add_page_break()
-                doc.add_paragraph(text)
+            # Add the text to the page element
+            page_element.text = page_text
 
-        # Save the Word document
-        doc.save(docx_file_path)
+        # Create a new XML file
+        xml_file_path = os.path.splitext(file_path)[0] + '.xml'
+        ET.ElementTree(root).write(xml_file_path)
 
-        # Convert the Word document to XML
-        convert_docx_to_xml(docx_file_path)
+        # Generate corrected XML file
+        generate_corrected_xml(xml_file_path)
 
-# Create a function to convert a DOCX file to XML
+        # Show a message in the console
+        print(f"File converted to XML file:\n{xml_file_path}")
+
 def convert_docx_to_xml(file_path):
-    # Create a new XML element
     root = ET.Element('document')
-
-    # Get the text of the Word document
     docx_text = docx2txt.process(file_path)
-
-    # Convert HTML entities to symbols
-    docx_text = html.unescape(docx_text)
-
-    # Split the text into pages
     pages = docx_text.split('\f')
-
-    # Loop through each page of the Word document
     for page_num, page_text in enumerate(pages):
-        # Create a new XML element for the page
         page_element = ET.SubElement(root, 'page')
         page_element.set('number', str(page_num + 1))
-
-        # Add the text to the page element
         page_element.text = page_text
-
-    # Create a new XML file
     xml_file_path = os.path.splitext(file_path)[0] + '.xml'
     ET.ElementTree(root).write(xml_file_path)
+    generate_corrected_xml(xml_file_path)
+    # Show a message in the console
+    print(f"File converted to XML file:\n{xml_file_path}")
 
-    # Show a message box with the path of the XML file
-    messagebox.showinfo("Conversion Complete", f"File converted to XML file:\n{xml_file_path}")
+def handle_select():
+    file_type = toggle_button['text'].lower()
+    file_path = filedialog.askopenfilename(filetypes=[(f"{file_type.upper()} files", f"*.{file_type}")])
+    if file_path:
+        if file_type == 'pdf':
+            convert_pdf_to_xml(file_path)
+        elif file_type == 'docx':
+            convert_docx_to_xml(file_path)
 
-# Create a function to handle the file type toggle
 def handle_toggle():
     if file_type.get() == "pdf":
         file_type.set("docx")
@@ -107,13 +89,17 @@ def handle_toggle():
         toggle_button.config(text="Convert to DOCX")
         label.config(text="Click the button to select a PDF file")
 
-# Create a button to select a file
+window = tk.Tk()
+window.title("File Converter")
+
+file_type = tk.StringVar(value="pdf")
+label = ttk.Label(window, text="Click the button to select a PDF file")
+label.pack(pady=10)
+
 button = ttk.Button(window, text="Select a file", command=handle_select)
 button.pack(pady=10)
 
-# Create a button to toggle between PDF and DOCX
 toggle_button = ttk.Button(window, text="Convert to DOCX", command=handle_toggle)
 toggle_button.pack(pady=10)
 
-# Run the main event loop
 window.mainloop()
