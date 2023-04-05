@@ -1,5 +1,4 @@
 import PyPDF2
-from PyPDF2 import PdfReader
 import docx
 import pytesseract
 from PIL import Image
@@ -9,15 +8,16 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
 def pdf_to_xml(file_path):
-    with open(file_path, 'rb') as pdf_file:
-        pdf_reader = PdfReader(pdf_file)
-        xml_text = '<document>\n'
-        for page_num in range(len(pdf_reader.pages)):
-            page_text = pdf_reader.pages[page_num].extract_text()
-            xml_text += '<page>\n'
-            xml_text += page_text
-            xml_text += '</page>\n'
-        xml_text += '</document>'
+    pdf_file = open(file_path, 'rb')
+    pdf_reader = PyPDF2.PdfReader(pdf_file)
+    xml_text = '<document>\n'
+    for page_num in range(len(pdf_reader.pages)):
+        page = pdf_reader.pages[page_num]
+        page_text = page.extract_text()
+        xml_text += '<page>\n'
+        xml_text += page_text
+        xml_text += '</page>\n'
+    xml_text += '</document>'
     return xml_text
 
 def docx_to_xml(file_path):
@@ -85,32 +85,16 @@ def show_xml_editor(xml_text, file_path):
         with open(file_path, 'w') as xml_file:
             xml_file.write(modified_xml_text)
         messagebox.showinfo('Save', 'XML file saved successfully')
-        xml_editor_window.destroy()
 
     xml_editor_window = tk.Toplevel(root)
     xml_editor_window.title('XML Editor')
 
     xml_editor = scrolledtext.ScrolledText(xml_editor_window, width=80, height=30)
-    xml_editor.grid(row=0, column=0, sticky='nsew')
+    xml_editor.pack(padx=10, pady=10)
     xml_editor.insert('1.0', xml_text)
 
     save_button = tk.Button(xml_editor_window, text='Save', command=save_xml)
-    save_button.grid(row=1, column=0, pady=10)
-
-    xml_editor_window.columnconfigure(0, weight=1)
-    xml_editor_window.rowconfigure(0, weight=1)
-
-    xml_editor_window.geometry('800x600')
-    xml_editor_window.resizable(True, True)
-
-    def on_resize(event):
-        new_size = f'{event.width}x{event.height}'
-        if event.width > xml_editor_window.winfo_width() and event.height > xml_editor_window.winfo_height():
-            xml_editor_window.geometry(new_size)
-
-    xml_editor_window.bind('<Configure>', on_resize)
-
-    xml_editor_window.mainloop()
+    save_button.pack(pady=10)
 
 root = tk.Tk()
 root.title('PDF/DOCX to XML Converter')
